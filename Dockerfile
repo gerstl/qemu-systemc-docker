@@ -108,8 +108,7 @@ RUN locale-gen en_US.UTF-8 && update-locale
 # make a xilinx user
 RUN adduser --disabled-password --gecos '' xilinx && \
   usermod -aG sudo xilinx && \
-  echo "xilinx ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-  mkdir /home/xilinx/bin
+  echo "xilinx ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # run the SystemC install
 COPY ${SYSTEMC_ARCHIVE} /home/xilinx/
@@ -145,6 +144,10 @@ ENV HOME /home/xilinx
 ENV LANG en_US.UTF-8
 WORKDIR /home/xilinx
 
+# add SystemC to path
+RUN echo "" >> /home/xilinx/.bashrc && \
+  echo "export LD_LIBRARY_PATH=${INSTALL_ROOT}/systemc-${SYSTEMC_VERSION}/lib-linux64" >> /home/xilinx/.bashrc
+
 # clone the Xilinx SystemC co-simulation demo
 RUN cd /home/xilinx && \
   git clone --depth 1 https://github.com/Xilinx/systemctlm-cosim-demo.git && \
@@ -161,6 +164,7 @@ RUN cd /home/xilinx && \
 #  make
 
 # copy QEMU boot script
-COPY qemu-boot /home/xilinx/bin/
-
+COPY qemu-boot /home/xilinx/
+RUN sudo chown xilinx.xilinx /home/xilinx/qemu-boot && \
+  mkdir tmp
 
