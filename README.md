@@ -35,7 +35,7 @@ The simulation quantum is optional and defaults to 1000000.
 
 Then switch to another host terminal, and launch a second shell in your container:
 
-'docker exec -it <container> /bin/bash'
+`docker exec -it <container> /bin/bash`
 
 and run the SystemC side of the co-simulation using the same `<quantum>` as given on the QEMU side:
 
