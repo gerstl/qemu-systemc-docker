@@ -1,10 +1,29 @@
 #!/bin/sh
 
-QEMU_PATH=/usr/local/bin
-IMAGE_PATH=/home/qemu/images
+IMAGE_PATH=./images/linux
 
-# Launch MicroBlaze PMU instance
-$QEMU_PATH/qemu-system-microblazeel -M microblaze-fdt -display none -kernel $IMAGE_PATH/images/linux/pmu_rom_qemu_sha3_Modified.elf -device loader,file=$IMAGE_PATH/images/linux/pmufw_Modified.elf -hw-dtb $IMAGE_PATH/linux/zynqmp-qemu-multiarch-pmu.dtb -machine-path ../linkDir/tmp.xilinxcosim -display none -serial mon:stdio -serial /dev/null -device loader,addr=0xfd1a0074,data=0x1011003,data-len=4 -device loader,addr=0xfd1a007C,data=0x1010f03,data-len=4 &
+HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.dtb
+
+OPTS=""
+QUANTUM="1000000"
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --cosim|-c) 
+        HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.cosim.dtb
+        [ -n "$2" ] && QUANTUM="$2"
+        OPTS="-icount 1 -sync-quantum $QUANTUM"
+        shift
+        shift
+        ;;
+    *)
+        echo "Usage: qemu-boot [--cosim [<quantum>]]"
+        exit 1
+        ;;
+  esac
+done
+
+# Launch MicroBlaze PMU instance in background
+qemu-system-microblazeel -M microblaze-fdt -serial mon:stdio -serial /dev/null -display none -kernel ${IMAGE_PATH}/pmu_rom_qemu_sha3.elf -device loader,file=${IMAGE_PATH}/pmufw.elf -hw-dtb ${IMAGE_PATH}/zynqmp-qemu-multiarch-pmu.dtb -machine-path ./tmp -device loader,addr=0xfd1a0074,data=0x1011003,data-len=4 -device loader,addr=0xfd1a007C,data=0x1010f03,data-len=4 &
 
 # Launch ARM instance
-exec $QEMU_PATH/qemu-system-aarch64 -M arm-generic-fdt -display none  -serial mon:stdio -serial /dev/null -device loader,file=$IMAGE_PATH/linux/bl31.elf,cpu-num=0 -device loader,file=$IMAGE_PATH/linux/Image,addr=0x00080000 -device loader,file=$IMAGE_PATH/linux/system.dtb,addr=0x15e80000 -device loader,file=$IMAGE_PATH/linux/linux-boot.elf -gdb tcp::9000 -dtb $IMAGE_PATH/linux/system.dtb  -net nic -net nic -net nic -dtb $IMAGE_PATH/linux/zcu102-arm.cosim.dtb -machine-path ../linkDir/tmp.xilinxcosim -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -net user,hostfwd=tcp::2222-:22 -net nic -m 4G
+exec qemu-system-aarch64 -M arm-generic-fdt -serial mon:stdio -serial /dev/null -display none -device loader,file=${IMAGE_PATH}/bl31.elf,cpu-num=0 -boot mode=5 -drive if=sd,index=1,file=${IMAGE_PATH}/petalinux-sdimage.wic,format=raw -device loader,file=${IMAGE_PATH}/system.dtb,addr=0x00100000,force-raw -device loader,file=${IMAGE_PATH}/u-boot.elf -gdb tcp::9000 -net nic -net nic -net nic -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot -hw-dtb ${HW_DTB} -machine-path ./tmp -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -m 4G $OPTS
