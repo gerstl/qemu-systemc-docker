@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 IMAGE_PATH=./images/linux
 
@@ -10,13 +10,16 @@ while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --cosim|-c) 
         HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.cosim.dtb
-        [ -n "$2" ] && QUANTUM="$2"
-        OPTS="-icount 1 -sync-quantum $QUANTUM"
-        shift
+        [[ -n "$2" && "$2" != -* ]] && QUANTUM="$2" && shift
+        OPTS="$OPTS -sync-quantum $QUANTUM"
         shift
         ;;
+    --icount|-i)        
+        OPTS="$OPTS -icount $2"
+        shift
+        shift
     *)
-        echo "Usage: qemu-boot [--cosim [<quantum>]]"
+        echo "Usage: qemu-boot [--icount|-i <icount>] [--cosim|-c [<quantum>]]"
         exit 1
         ;;
   esac
