@@ -5,6 +5,7 @@ IMAGE_PATH=./images/linux
 HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.dtb
 
 OPTS=""
+ICOUNT=1
 QUANTUM="1000000"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -15,11 +16,12 @@ while [[ "$#" -gt 0 ]]; do
         shift
         ;;
     --icount|-i)        
-        OPTS="$OPTS -icount $2"
+        [[ -n "$2" && "$2" != -* ]] && ICOUNT="$2" && shift
+        OPTS="$OPTS -icount $ICOUNT"
         shift
-        shift
+        ;;
     *)
-        echo "Usage: qemu-boot [--icount|-i <icount>] [--cosim|-c [<quantum>]]"
+        echo "Usage: qemu-boot [--icount|-i [<icount>]] [--cosim|-c [<quantum>]]"
         exit 1
         ;;
   esac
