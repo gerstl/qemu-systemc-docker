@@ -1,16 +1,26 @@
 #!/bin/bash
 
-IMAGE_PATH=./images/linux
+IMAGE=./images/linux
+ROM=${IMAGE}/pmu_rom_qemu_sha3.elf
+FW=${IMAGE}/pmufw.elf
+ATF=${IMAGE}/bl31.elf
+WIC=${IMAGE}/petalinux-sdimage.wic
+DTB=${IMAGE}/system.dtb
+UBOOT=${IMAGE}/u-boot.elf
+PMU_DTB=${IMAGE}/zynqmp-qemu-multiarch-pmu.dtb
+ARM_DTB=${IMAGE}/zynqmp-qemu-multiarch-arm.dtb
 
-HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.dtb
+MACHINE_PATH=./tmp
 
 OPTS=""
+GDB="-s"
+NET=""
 ICOUNT=1
 QUANTUM="1000000"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --cosim|-c) 
-        HW_DTB=${IMAGE_PATH}/zynqmp-qemu-multiarch-arm.cosim.dtb
+        ARM_DTB=${IMAGE}/zynqmp-qemu-multiarch-arm.cosim.dtb
         [[ -n "$2" && "$2" != -* ]] && QUANTUM="$2" && shift
         OPTS="$OPTS -sync-quantum $QUANTUM"
         shift
@@ -20,15 +30,35 @@ while [[ "$#" -gt 0 ]]; do
         OPTS="$OPTS -icount $ICOUNT"
         shift
         ;;
+    --netdev|-n)
+        [[ -n "$2" && "$2" != -* ]] && NET="-netdev $2" && shift
+	OPTS="$OPTS $NET"
+	shift
+	;;
+    --gdb|-g)
+        [[ -n "$2" && "$2" != -* ]] && GDB="-gdb $2" && shift
+	OPTS="$OPTS $GDB"
+	shift
+	;;
+    -S)
+	OPTS="$OPTS -S"
+	shift
+	;;
     *)
-        echo "Usage: qemu-boot [--icount|-i [<icount>]] [--cosim|-c [<quantum>]]"
+        echo "Usage: qemu-boot [--icount|-i [<icount>]] [--cosim|-c [<quantum>]] [--netdev|-n <dev>] [--gdb|-g [<dev>]] [-S]"
         exit 1
         ;;
   esac
 done
 
+# Create temporary directory if it doesn't exist
+if [ ! -d "$MACHINE_PATH" ]; then
+  echo "Creating temporary directory $MACHINE_PATH"
+  mkdir -p ${MACHINE_PATH}
+fi
+
 # Launch MicroBlaze PMU instance in background
-qemu-system-microblazeel -M microblaze-fdt -serial mon:stdio -serial /dev/null -display none -kernel ${IMAGE_PATH}/pmu_rom_qemu_sha3.elf -device loader,file=${IMAGE_PATH}/pmufw.elf -hw-dtb ${IMAGE_PATH}/zynqmp-qemu-multiarch-pmu.dtb -machine-path ./tmp -device loader,addr=0xfd1a0074,data=0x1011003,data-len=4 -device loader,addr=0xfd1a007C,data=0x1010f03,data-len=4 &
+qemu-system-microblazeel -M microblaze-fdt -serial mon:stdio -serial /dev/null -display none -kernel ${ROM} -device loader,file=${FW} -hw-dtb ${PMU_DTB} -machine-path ${MACHINE_PATH} -device loader,addr=0xfd1a0074,data=0x1011003,data-len=4 -device loader,addr=0xfd1a007C,data=0x1010f03,data-len=4 &
 
 # Launch ARM instance
-exec qemu-system-aarch64 -M arm-generic-fdt -serial mon:stdio -serial /dev/null -display none -device loader,file=${IMAGE_PATH}/bl31.elf,cpu-num=0 -boot mode=5 -drive if=sd,index=1,file=${IMAGE_PATH}/petalinux-sdimage.wic,format=raw -device loader,file=${IMAGE_PATH}/system.dtb,addr=0x00100000,force-raw -device loader,file=${IMAGE_PATH}/u-boot.elf -gdb tcp::9000 -net nic -net nic -net nic -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot -hw-dtb ${HW_DTB} -machine-path ./tmp -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -m 4G $OPTS
+exec qemu-system-aarch64 -M arm-generic-fdt -serial mon:stdio -serial /dev/null -display none -device loader,file=${ATF},cpu-num=0 -boot mode=5 -drive if=sd,index=1,file=${WIC},format=raw -device loader,file=${DTB},addr=0x00100000,force-raw -device loader,file=${UBOOT} -net nic -net nic -net nic -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot -hw-dtb ${ARM_DTB} -machine-path ${MACHINE_PATH} -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -m 4G $OPTS
