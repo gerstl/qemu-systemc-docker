@@ -31,8 +31,7 @@ while [[ "$#" -gt 0 ]]; do
         shift
         ;;
     --netdev|-n)
-        [[ -n "$2" && "$2" != -* ]] && NET="-netdev $2" && shift
-	OPTS="$OPTS $NET"
+        [[ -n "$2" && "$2" != -* ]] && NET=",$2" && shift
 	shift
 	;;
     --gdb|-g)
@@ -61,4 +60,4 @@ fi
 qemu-system-microblazeel -M microblaze-fdt -serial mon:stdio -serial /dev/null -display none -kernel ${ROM} -device loader,file=${FW} -hw-dtb ${PMU_DTB} -machine-path ${MACHINE_PATH} -device loader,addr=0xfd1a0074,data=0x1011003,data-len=4 -device loader,addr=0xfd1a007C,data=0x1010f03,data-len=4 &
 
 # Launch ARM instance
-exec qemu-system-aarch64 -M arm-generic-fdt -serial mon:stdio -serial /dev/null -display none -device loader,file=${ATF},cpu-num=0 -boot mode=5 -drive if=sd,index=1,file=${WIC},format=raw -device loader,file=${DTB},addr=0x00100000,force-raw -device loader,file=${UBOOT} -net nic -net nic -net nic -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot -hw-dtb ${ARM_DTB} -machine-path ${MACHINE_PATH} -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -m 4G $OPTS
+exec qemu-system-aarch64 -M arm-generic-fdt -serial mon:stdio -serial /dev/null -display none -device loader,file=${ATF},cpu-num=0 -boot mode=5 -drive if=sd,index=1,file=${WIC},format=raw -device loader,file=${DTB},addr=0x00100000,force-raw -device loader,file=${UBOOT} -net nic -net nic -net nic -net nic,netdev=eth0 -netdev user,id=eth0,tftp=/tftpboot${NET} -hw-dtb ${ARM_DTB} -machine-path ${MACHINE_PATH} -global xlnx,zynqmp-boot.cpu-num=0 -global xlnx,zynqmp-boot.use-pmufw=true -m 4G $OPTS
