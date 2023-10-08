@@ -3,11 +3,11 @@ FROM ubuntu:18.04
 MAINTAINER gerstl <gerstl@ece.utexas.edu>
 
 ARG INSTALL_ROOT=/opt
-ARG SYSTEMC_VERSION=2.3.3
-ARG SYSTEMC_ARCHIVE=systemc-2.3.3.tar.gz
-ARG XILINX_VERSION=2020.2
+ARG SYSTEMC_VERSION=2.3.4
+ARG SYSTEMC_ARCHIVE=systemc-2.3.4.tar.gz
+ARG XILINX_VERSION=2022.2
 
-# build with "docker build --build-arg XILINX_VERSION=2020.2 -t qemu-systemc:2020.2 ."
+# build with "docker build -t qemu-systemc:2022.2 ."
 
 # install dependences:
 
@@ -101,6 +101,7 @@ RUN apt-get update &&  DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
     update-inetd \
     xfslibs-dev \
     device-tree-compiler \
+    ninja-build \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -112,11 +113,14 @@ RUN adduser --disabled-password --gecos '' xilinx && \
   echo "xilinx ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # run the SystemC install
+# NOTE: 2.3.4 version requires automake to create missing Makefiles
 COPY ${SYSTEMC_ARCHIVE} /home/xilinx/
 RUN cd /home/xilinx && \
   tar xzf ${SYSTEMC_ARCHIVE} && \
-  mkdir systemc-${SYSTEMC_VERSION}/objdir && \
-  cd systemc-${SYSTEMC_VERSION}/objdir && \
+  cd systemc-${SYSTEMC_VERSION} && \
+  aclocal && automake --add-missing && automake && \
+  mkdir objdir && \
+  cd objdir && \
   ../configure --prefix=${INSTALL_ROOT}/systemc-${SYSTEMC_VERSION} && \
   make && \
   make install && \
@@ -124,13 +128,11 @@ RUN cd /home/xilinx && \
   rm -f ${SYSTEMC_ARCHIVE} && \
   rm -rf systemc-${SYSTEMC_VERSION}
 
-# install QEMU (with patch for libssh bug in Ubuntu 18.04)
+# install QEMU
 RUN cd /home/xilinx && \
-  git clone -b xilinx-v${XILINX_VERSION} --depth 1 https://github.com/Xilinx/qemu.git && \
+  git clone -b xlnx_rel_v${XILINX_VERSION} --depth 1 https://github.com/Xilinx/qemu.git && \
   cd qemu && \
   ./configure --target-list=aarch64-softmmu,microblazeel-softmmu --enable-fdt --disable-kvm --disable-xen && \
-  sed -i -e 's|-DHAVE_LIBSSH_0_8||g' config-host.mak && \
-  sed -i -e 's|ssh_get_publickey(|ssh_get_server_publickey(|g' block/ssh.c && \
   make && \
   make install && \
   cd /home/xilinx && \
@@ -150,12 +152,15 @@ RUN echo "" >> /home/xilinx/.bashrc && \
   echo "export LD_LIBRARY_PATH=${INSTALL_ROOT}/systemc-${SYSTEMC_VERSION}/lib-linux64" >> /home/xilinx/.bashrc
 
 # clone the Xilinx SystemC co-simulation demo
+# NOTE: disable Versal demos (and library modules), they need newest g++
 RUN cd /home/xilinx && \
   git clone --depth 1 https://github.com/Xilinx/systemctlm-cosim-demo.git && \
   cd systemctlm-cosim-demo && \
   git submodule update --init libsystemctlm-soc && \
   sed -i -e 's|/usr/local/systemc-2.3.2|'${INSTALL_ROOT}'/systemc-'${SYSTEMC_VERSION}'|g' Makefile && \
-  make && \
+  sed -i -e 's|\(^SC_OBJS += .*/mcdma.o\)|#\1|g' Makefile && \
+  sed -i -e 's|\(^SC_OBJS += .*/mrmac.o\)|#\1|g' Makefile && \
+  make zynq_demo zynqmp_demo && \
   make TARGETS= clean
 
 # Optional: clone the device trees for co-simulation
